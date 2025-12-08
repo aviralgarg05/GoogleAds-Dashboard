@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useKelkooData, calculateKelkooMetrics, calculateCampaignKelkooData } from "@/hooks/useKelkooData";
 import {
     RefreshCw,
     Download,
@@ -20,6 +21,8 @@ import {
     formatCurrency,
     formatNumber,
     kelkooAggregates,
+    admediaAggregates,
+    aiMetrics,
     Campaign
 } from "@/lib/campaign-data";
 import {
@@ -497,13 +500,6 @@ const ClicksIcon = () => (
     </svg>
 );
 
-const ImpressionsIcon = () => (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-    </svg>
-);
-
 const CostIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -538,9 +534,40 @@ export default function DashboardPage() {
     const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
     const [selectedMetric, setSelectedMetric] = useState<"clicks" | "cost" | "conversions">("clicks");
     const [showCommandPalette, setShowCommandPalette] = useState(false);
-    const [comparisonMode, setComparisonMode] = useState(false);
+    const [, setComparisonMode] = useState(false);
     const [selectedView, setSelectedView] = useState<"overview" | "performance" | "budget">("overview");
     const [activeKPI, setActiveKPI] = useState<string | null>(null);
+    const [detailModal, setDetailModal] = useState<{ type: string; title: string; data: Record<string, unknown> } | null>(null);
+
+    // Fetch Kelkoo data dynamically from API
+    const { data: kelkooApiData, loading: kelkooLoading, error: kelkooError, isFallback: kelkooIsFallback, refetch: refetchKelkoo } = useKelkooData("2025-10-01", "2025-10-31");
+
+    // Calculate derived Kelkoo metrics
+    const kelkooMetrics = useMemo(() => {
+        if (!kelkooApiData) return null;
+        return calculateKelkooMetrics(kelkooApiData);
+    }, [kelkooApiData]);
+
+    // Enrich campaigns with live Kelkoo data
+    const liveEnrichedCampaigns = useMemo(() => {
+        if (!kelkooApiData) return enrichedCampaigns;
+
+        const klCampaigns = campaigns.filter(c => c.name.toLowerCase().endsWith("-kl"));
+        const totalKLClicks = klCampaigns.reduce((sum, c) => sum + c.clicks, 0);
+
+        return enrichedCampaigns.map(campaign => {
+            if (!campaign.name.toLowerCase().endsWith("-kl")) return campaign;
+
+            const kelkooData = calculateCampaignKelkooData(
+                kelkooApiData,
+                campaign.clicks,
+                totalKLClicks,
+                campaign.cost
+            );
+
+            return { ...campaign, ...kelkooData };
+        });
+    }, [kelkooApiData]);
 
     // Keyboard shortcuts
     useKeyboardShortcut('k', () => setShowCommandPalette(true), true);
@@ -558,9 +585,6 @@ export default function DashboardPage() {
     useKeyboardShortcut('t', handleToggleTheme);
     useKeyboardShortcut('/', handleFocusSearch);
     useKeyboardShortcut('m', handleSwitchMetric);
-
-    // Command handlers
-    const searchInputRef = { current: null as HTMLInputElement | null };
 
     function handleExport() {
         const headers = ["Campaign", "Account", "Clicks", "Impressions", "Cost", "Conversions", "CTR", "Conv Rate"];
@@ -588,7 +612,7 @@ export default function DashboardPage() {
     }
 
     function handleRefresh() {
-        window.location.reload();
+        globalThis.location.reload();
     }
 
     function handleToggleTheme() {
@@ -614,6 +638,7 @@ export default function DashboardPage() {
         return totalValue / totals.cost;
     }, []);
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const budgetUtilization = useMemo(() => {
         const totalBudget = totals.totalBudget * 31; // Monthly budget
         return (totals.cost / totalBudget) * 100;
@@ -627,7 +652,7 @@ export default function DashboardPage() {
 
     // Chart data - use pre-formatted date labels
     const trendData = dailyTrend.map(d => {
-        const day = parseInt(d.date.split("-")[2], 10);
+        const day = Number.parseInt(d.date.split("-")[2], 10);
         return {
             date: `Oct ${day}`,
             clicks: d.clicks,
@@ -652,19 +677,22 @@ export default function DashboardPage() {
             conversions: c.conversions,
         }));
 
-    // Table columns with Kelkoo data
+    // Table columns with Kelkoo, Admedia, and AI data
     const campaignColumns = [
         {
             key: "name",
             header: "Campaign",
             sortable: true,
-            render: (value: string, row: Campaign & { isKelkoo?: boolean }) => (
+            render: (value: string, row: Campaign & { isKelkoo?: boolean; isAdmedia?: boolean }) => (
                 <button
                     onClick={() => setSelectedCampaign(row)}
                     className="text-left hover:text-purple-400 transition-colors font-medium flex items-center gap-2"
                 >
                     {row.isKelkoo && (
                         <span className="px-1.5 py-0.5 text-[10px] font-bold bg-gradient-to-r from-purple-500 to-cyan-500 rounded text-white">KL</span>
+                    )}
+                    {row.isAdmedia && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold bg-gradient-to-r from-amber-500 to-orange-500 rounded text-white">AM</span>
                     )}
                     {value}
                 </button>
@@ -688,6 +716,36 @@ export default function DashboardPage() {
             ),
         },
         {
+            key: "healthScore",
+            header: "Health",
+            align: "right" as const,
+            sortable: true,
+            render: (value: number | undefined) => (
+                <span className={`px-2 py-0.5 rounded text-xs font-bold ${(value || 0) >= 70 ? "bg-emerald-500/20 text-emerald-400" :
+                    (value || 0) >= 50 ? "bg-amber-500/20 text-amber-400" :
+                        "bg-rose-500/20 text-rose-400"
+                    }`}>
+                    {value || 0}
+                </span>
+            ),
+        },
+        {
+            key: "efficiencyRating",
+            header: "Grade",
+            align: "center" as const,
+            sortable: true,
+            render: (value: string | undefined) => (
+                <span className={`px-2 py-0.5 rounded text-xs font-bold ${value === "A" ? "bg-emerald-500/20 text-emerald-400" :
+                    value === "B" ? "bg-cyan-500/20 text-cyan-400" :
+                        value === "C" ? "bg-amber-500/20 text-amber-400" :
+                            value === "D" ? "bg-orange-500/20 text-orange-400" :
+                                "bg-rose-500/20 text-rose-400"
+                    }`}>
+                    {value || "-"}
+                </span>
+            ),
+        },
+        {
             key: "kelkooLeads",
             header: "KL Leads",
             align: "right" as const,
@@ -695,6 +753,19 @@ export default function DashboardPage() {
             render: (value: number | undefined, row: Campaign & { isKelkoo?: boolean }) => (
                 row.isKelkoo ? (
                     <span className="text-cyan-400 font-medium">{value || 0}</span>
+                ) : (
+                    <span className="text-gray-600">-</span>
+                )
+            ),
+        },
+        {
+            key: "admediaLeads",
+            header: "AM Leads",
+            align: "right" as const,
+            sortable: true,
+            render: (value: number | undefined, row: Campaign & { isAdmedia?: boolean }) => (
+                row.isAdmedia ? (
+                    <span className="text-amber-400 font-medium">{value || 0}</span>
                 ) : (
                     <span className="text-gray-600">-</span>
                 )
@@ -714,12 +785,25 @@ export default function DashboardPage() {
             ),
         },
         {
+            key: "admediaEarningsInr",
+            header: "AM Earnings",
+            align: "right" as const,
+            sortable: true,
+            render: (value: number | undefined, row: Campaign & { isAdmedia?: boolean }) => (
+                row.isAdmedia ? (
+                    <span className="text-emerald-400 font-medium">Rs.{(value || 0).toLocaleString()}</span>
+                ) : (
+                    <span className="text-gray-600">-</span>
+                )
+            ),
+        },
+        {
             key: "actualROAS",
             header: "ROAS",
             align: "right" as const,
             sortable: true,
-            render: (value: number | undefined, row: Campaign & { isKelkoo?: boolean }) => (
-                row.isKelkoo ? (
+            render: (value: number | undefined, row: Campaign & { isKelkoo?: boolean; isAdmedia?: boolean }) => (
+                (row.isKelkoo || row.isAdmedia) ? (
                     <span className={`font-medium ${(value || 0) >= 1 ? "text-emerald-400" : "text-red-400"}`}>
                         {(value || 0).toFixed(2)}x
                     </span>
@@ -733,8 +817,8 @@ export default function DashboardPage() {
             header: "Profit",
             align: "right" as const,
             sortable: true,
-            render: (value: number | undefined, row: Campaign & { isKelkoo?: boolean }) => (
-                row.isKelkoo ? (
+            render: (value: number | undefined, row: Campaign & { isKelkoo?: boolean; isAdmedia?: boolean }) => (
+                (row.isKelkoo || row.isAdmedia) ? (
                     <span className={`font-medium ${(value || 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                         Rs.{(value || 0).toLocaleString()}
                     </span>
@@ -742,6 +826,24 @@ export default function DashboardPage() {
                     <span className="text-gray-600">-</span>
                 )
             ),
+        },
+        {
+            key: "riskLevel",
+            header: "Risk",
+            align: "center" as const,
+            sortable: true,
+            render: (value: string | undefined) => {
+                const colors: Record<string, string> = {
+                    "Low": "bg-emerald-500/20 text-emerald-400",
+                    "Medium": "bg-amber-500/20 text-amber-400",
+                    "High": "bg-rose-500/20 text-rose-400",
+                };
+                return (
+                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${colors[value || "Low"] || "bg-gray-500/20 text-gray-400"}`}>
+                        {value || "-"}
+                    </span>
+                );
+            },
         },
     ];
 
@@ -792,10 +894,160 @@ export default function DashboardPage() {
                         <p className="text-lg leading-relaxed text-gray-200">
                             You spent <span className="font-bold text-amber-400">{formatCurrency(totals.cost)}</span> and generated{" "}
                             <span className="font-bold text-emerald-400">{formatNumber(totals.conversions)} conversions</span> at{" "}
-                            <span className="font-bold text-purple-400">{avgROAS.toFixed(2)}x ROAS</span>. Top performer:{" "}
-                            <span className="font-bold text-cyan-400">Pmall-MB</span> with 1,472 conversions.{" "}
-                            <span className="text-gray-400">Budget utilization at {budgetUtilization.toFixed(0)}%.</span>
+                            <span className="font-bold text-purple-400">{avgROAS.toFixed(2)}x ROAS</span>.{" "}
+                            <span className="text-cyan-400 font-semibold">{aiMetrics.highPerformers} campaigns</span> rated A/B,{" "}
+                            <span className="text-rose-400 font-semibold">{aiMetrics.atRiskCampaigns} at risk</span>.{" "}
+                            <span className="text-gray-400">
+                                Kelkoo: <span className="text-emerald-400">{kelkooAggregates.totalLeads.toLocaleString()}</span> leads (€{kelkooAggregates.totalRevenueEur.toLocaleString()}).{" "}
+                                Admedia: <span className="text-amber-400">{admediaAggregates.totalLeads.toLocaleString()}</span> leads (${admediaAggregates.totalEarningsUsd.toLocaleString()}).
+                            </span>
                         </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* AI Metrics Summary Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-gradient-to-br from-purple-900/30 to-purple-900/10 rounded-xl border border-purple-500/30 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-purple-400 font-medium">Avg Health Score</span>
+                        <span className="text-xl">🏥</span>
+                    </div>
+                    <p className="text-2xl font-bold text-white">{aiMetrics.averageHealthScore}</p>
+                    <p className="text-xs text-gray-500 mt-1">Out of 100</p>
+                </div>
+                <div className="bg-gradient-to-br from-emerald-900/30 to-emerald-900/10 rounded-xl border border-emerald-500/30 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-emerald-400 font-medium">High Performers</span>
+                        <span className="text-xl">⭐</span>
+                    </div>
+                    <p className="text-2xl font-bold text-emerald-400">{aiMetrics.highPerformers}</p>
+                    <p className="text-xs text-gray-500 mt-1">A/B Rated Campaigns</p>
+                </div>
+                <div className="bg-gradient-to-br from-amber-900/30 to-amber-900/10 rounded-xl border border-amber-500/30 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-amber-400 font-medium">Needs Attention</span>
+                        <span className="text-xl">⚠️</span>
+                    </div>
+                    <p className="text-2xl font-bold text-amber-400">{aiMetrics.needsAttention}</p>
+                    <p className="text-xs text-gray-500 mt-1">Medium Risk</p>
+                </div>
+                <div className="bg-gradient-to-br from-rose-900/30 to-rose-900/10 rounded-xl border border-rose-500/30 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-rose-400 font-medium">At Risk</span>
+                        <span className="text-xl">🚨</span>
+                    </div>
+                    <p className="text-2xl font-bold text-rose-400">{aiMetrics.atRiskCampaigns}</p>
+                    <p className="text-xs text-gray-500 mt-1">High Risk Campaigns</p>
+                </div>
+            </div>
+
+            {/* Data Source Summary (Kelkoo + Admedia) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Kelkoo Summary - Now with LIVE API data */}
+                <div
+                    className="bg-gradient-to-br from-cyan-900/20 to-purple-900/20 rounded-xl border border-cyan-500/20 p-5 cursor-pointer hover:border-cyan-400/40 transition-all"
+                    onClick={() => setDetailModal({
+                        type: "kelkoo",
+                        title: "Kelkoo Performance Details",
+                        data: {
+                            leads: kelkooMetrics?.totalLeads || kelkooAggregates.totalLeads,
+                            revenue: kelkooMetrics?.totalRevenueEur || kelkooAggregates.totalRevenueEur,
+                            revenueInr: kelkooMetrics?.totalRevenueInr || kelkooAggregates.totalRevenueInr,
+                            sales: kelkooMetrics?.totalSales || kelkooAggregates.totalSales,
+                            saleValue: kelkooMetrics?.totalSaleValueEur || kelkooAggregates.totalSaleValueEur,
+                            saleValueInr: kelkooMetrics?.totalSaleValueInr || kelkooAggregates.totalSaleValueInr,
+                            conversionRate: kelkooMetrics?.conversionRate || kelkooAggregates.conversionRate,
+                            revenuePerLead: kelkooMetrics?.revenuePerLead || kelkooAggregates.vpl,
+                            isLive: !kelkooIsFallback,
+                            campaigns: liveEnrichedCampaigns.filter(c => c.isKelkoo),
+                        }
+                    })}
+                >
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="px-2 py-1 bg-gradient-to-r from-purple-500 to-cyan-500 rounded text-xs font-bold text-white">KL</div>
+                        <h3 className="text-lg font-semibold text-white">Kelkoo (October 2025)</h3>
+                        {kelkooLoading ? (
+                            <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded-full animate-pulse">Loading...</span>
+                        ) : kelkooIsFallback ? (
+                            <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full">Cached</span>
+                        ) : (
+                            <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">Live</span>
+                        )}
+                        {kelkooError && <span className="text-xs text-red-400">{kelkooError}</span>}
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                        <div>
+                            <p className="text-xs text-gray-500">Leads</p>
+                            <p className="text-xl font-bold text-cyan-400">
+                                {(kelkooMetrics?.totalLeads || kelkooAggregates.totalLeads).toLocaleString()}
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500">Revenue (EUR)</p>
+                            <p className="text-xl font-bold text-emerald-400">
+                                €{(kelkooMetrics?.totalRevenueEur || kelkooAggregates.totalRevenueEur).toLocaleString()}
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500">Sales</p>
+                            <p className="text-xl font-bold text-purple-400">
+                                {kelkooMetrics?.totalSales || kelkooAggregates.totalSales}
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500">Sale Value</p>
+                            <p className="text-lg font-semibold text-white">
+                                €{(kelkooMetrics?.totalSaleValueEur || kelkooAggregates.totalSaleValueEur).toLocaleString()}
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500">Conv. Rate</p>
+                            <p className="text-lg font-semibold text-white">
+                                {(kelkooMetrics?.conversionRate || kelkooAggregates.conversionRate).toFixed(2)}%
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500">Value Per Lead</p>
+                            <p className="text-lg font-semibold text-white">
+                                €{(kelkooMetrics?.revenuePerLead || kelkooAggregates.vpl).toFixed(2)}
+                            </p>
+                        </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-3">Click for detailed breakdown</p>
+                </div>
+
+                {/* Admedia Summary */}
+                <div className="bg-gradient-to-br from-amber-900/20 to-orange-900/20 rounded-xl border border-amber-500/20 p-5">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="px-2 py-1 bg-gradient-to-r from-amber-500 to-orange-500 rounded text-xs font-bold text-white">AM</div>
+                        <h3 className="text-lg font-semibold text-white">Admedia (October 2025)</h3>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                        <div>
+                            <p className="text-xs text-gray-500">Leads</p>
+                            <p className="text-xl font-bold text-amber-400">{admediaAggregates.totalLeads.toLocaleString()}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500">Conversions</p>
+                            <p className="text-xl font-bold text-emerald-400">{admediaAggregates.totalConversions.toLocaleString()}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500">Conv Rate</p>
+                            <p className="text-xl font-bold text-purple-400">{admediaAggregates.conversionRate.toFixed(1)}%</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500">Earnings (USD)</p>
+                            <p className="text-lg font-semibold text-white">${admediaAggregates.totalEarningsUsd.toLocaleString()}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500">Earnings (INR)</p>
+                            <p className="text-lg font-semibold text-emerald-400">₹{admediaAggregates.totalEarningsInr.toLocaleString()}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500">Campaigns</p>
+                            <p className="text-lg font-semibold text-white">{admediaAggregates.amCampaignCount}</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1014,9 +1266,9 @@ export default function DashboardPage() {
 
             {/* Campaign Table */}
             <DataTable
-                data={enrichedCampaigns}
+                data={liveEnrichedCampaigns}
                 columns={campaignColumns}
-                title="All Campaigns (KL campaigns with Kelkoo data shown first)"
+                title={`All Campaigns (KL campaigns with ${kelkooLoading ? "loading..." : kelkooIsFallback ? "cached" : "live"} Kelkoo data)`}
                 searchKeys={["name", "account"]}
                 pageSize={10}
             />
@@ -1100,6 +1352,106 @@ export default function DashboardPage() {
                                     ))}
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Detail Modal for expanded views */}
+            {detailModal && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setDetailModal(null)}>
+                    <div className="bg-gray-900 border border-gray-700 rounded-2xl max-w-3xl w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b border-gray-700 flex items-center justify-between">
+                            <h2 className="text-xl font-display font-bold text-white">{detailModal.title}</h2>
+                            <button onClick={() => setDetailModal(null)} className="p-2 hover:bg-gray-800 rounded-lg transition-colors">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            {detailModal.type === "kelkoo" && (
+                                <>
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <span className="px-2 py-1 bg-gradient-to-r from-purple-500 to-cyan-500 rounded text-xs font-bold text-white">KL</span>
+                                        {(detailModal.data.isLive as boolean) ? (
+                                            <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">Live API Data</span>
+                                        ) : (
+                                            <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full">Cached Data</span>
+                                        )}
+                                    </div>
+
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                        <div className="bg-gray-800/50 rounded-xl p-4">
+                                            <p className="text-xs text-gray-500">Total Leads</p>
+                                            <p className="text-2xl font-bold text-cyan-400">{(detailModal.data.leads as number).toLocaleString()}</p>
+                                        </div>
+                                        <div className="bg-gray-800/50 rounded-xl p-4">
+                                            <p className="text-xs text-gray-500">Lead Revenue (EUR)</p>
+                                            <p className="text-2xl font-bold text-emerald-400">€{(detailModal.data.revenue as number).toLocaleString()}</p>
+                                        </div>
+                                        <div className="bg-gray-800/50 rounded-xl p-4">
+                                            <p className="text-xs text-gray-500">Lead Revenue (INR)</p>
+                                            <p className="text-2xl font-bold text-emerald-400">Rs.{Math.round(detailModal.data.revenueInr as number).toLocaleString()}</p>
+                                        </div>
+                                        <div className="bg-gray-800/50 rounded-xl p-4">
+                                            <p className="text-xs text-gray-500">Sales</p>
+                                            <p className="text-2xl font-bold text-purple-400">{(detailModal.data.sales as number).toLocaleString()}</p>
+                                        </div>
+                                        <div className="bg-gray-800/50 rounded-xl p-4">
+                                            <p className="text-xs text-gray-500">Sale Value (EUR)</p>
+                                            <p className="text-2xl font-bold text-white">€{(detailModal.data.saleValue as number).toLocaleString()}</p>
+                                        </div>
+                                        <div className="bg-gray-800/50 rounded-xl p-4">
+                                            <p className="text-xs text-gray-500">Sale Value (INR)</p>
+                                            <p className="text-2xl font-bold text-white">Rs.{Math.round(detailModal.data.saleValueInr as number).toLocaleString()}</p>
+                                        </div>
+                                        <div className="bg-gray-800/50 rounded-xl p-4">
+                                            <p className="text-xs text-gray-500">Conversion Rate</p>
+                                            <p className="text-2xl font-bold text-amber-400">{(detailModal.data.conversionRate as number).toFixed(2)}%</p>
+                                        </div>
+                                        <div className="bg-gray-800/50 rounded-xl p-4">
+                                            <p className="text-xs text-gray-500">Value Per Lead</p>
+                                            <p className="text-2xl font-bold text-white">€{(detailModal.data.revenuePerLead as number).toFixed(2)}</p>
+                                        </div>
+                                    </div>
+
+                                    <h3 className="text-sm font-semibold text-white mb-3">KL Campaigns Performance</h3>
+                                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                                        {(detailModal.data.campaigns as Campaign[]).map((camp, i) => (
+                                            <div key={camp.id} className="flex items-center gap-3 p-3 bg-gray-800/30 rounded-lg hover:bg-gray-800/50 transition-colors">
+                                                <span className="text-xs text-gray-500 w-6">{i + 1}</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-white truncate">{camp.name}</p>
+                                                    <p className="text-xs text-gray-500">Cost: {formatCurrency(camp.cost)} | Clicks: {camp.clicks.toLocaleString()}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-sm font-medium text-cyan-400">{camp.kelkooLeads || 0} leads</p>
+                                                    <p className="text-xs text-emerald-400">Rs.{(camp.kelkooRevenueInr || 0).toLocaleString()}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className={`text-sm font-bold ${(camp.actualROAS || 0) >= 1 ? "text-emerald-400" : "text-red-400"}`}>
+                                                        {(camp.actualROAS || 0).toFixed(2)}x
+                                                    </p>
+                                                    <p className={`text-xs ${(camp.profitability || 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                                                        Rs.{(camp.profitability || 0).toLocaleString()}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="mt-4 pt-4 border-t border-gray-700 flex justify-end">
+                                        <button
+                                            onClick={() => refetchKelkoo()}
+                                            className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-sm rounded-lg transition-colors flex items-center gap-2"
+                                        >
+                                            <RefreshCw className="w-4 h-4" />
+                                            Refresh Kelkoo Data
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

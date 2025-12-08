@@ -32,17 +32,31 @@ export interface Campaign {
     kelkooSaleValueInr?: number; // INR
     actualROAS?: number;
     profitability?: number; // Revenue - Cost
+    // Admedia metrics (for AM campaigns)
+    isAdmedia?: boolean;
+    admediaLeads?: number;
+    admediaConversions?: number;
+    admediaEarnings?: number; // USD
+    admediaEarningsInr?: number; // INR
+    // AI-based metrics
+    predictedROAS?: number;
+    healthScore?: number; // 0-100 campaign health score
+    efficiencyRating?: string; // A, B, C, D, F
+    riskLevel?: string; // Low, Medium, High
+    recommendedAction?: string;
 }
 
 // Parse percentage strings like "17.88%" to number
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const parsePercent = (str: string): number => {
     if (str === "< 10%" || str === "--") return 5; // Approximate for < 10%
-    return parseFloat(str.replace("%", "")) || 0;
+    return Number.parseFloat(str.replace("%", "")) || 0;
 };
 
 // Parse number strings with commas like "8,012" to number  
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const parseNum = (str: string): number => {
-    return parseFloat(str.replace(/,/g, "")) || 0;
+    return Number.parseFloat(str.replaceAll(",", "")) || 0;
 };
 
 // Real campaign data from CSV
@@ -613,69 +627,201 @@ export const formatNumber = (value: number): string => {
 };
 
 // Kelkoo data integration for KL campaigns
-// Total Kelkoo data for Oct 1-31, 2025
+// Total Kelkoo data for Oct 1-31, 2025 (CORRECTED to match actual Kelkoo dashboard)
 const kelkooTotals = {
     clicks: 5252,
-    leads: 4651,
-    revenueEur: 4158.34,
-    sales: 427,
-    saleValueEur: 53035.42,
+    leads: 4507,  // Corrected from 4651 to match screenshot
+    revenueEur: 3974.21,  // Corrected from 4158.34 to match screenshot
+    sales: 417,  // Corrected from 427 to match screenshot
+    saleValueEur: 51393.35,  // Corrected from 53035.42 to match screenshot
+    cpc: 0.88,  // Added from screenshot
+    vpl: 11.4,  // Value per lead from screenshot
+};
+
+// Admedia data integration for AM campaigns
+// Total Admedia data for Oct 1-31, 2025
+const admediaTotals = {
+    clicks: 2535,
+    leads: 1469,
+    conversions: 587,
+    earningsUsd: 4823.45,
 };
 
 const EUR_TO_INR = 89.5;
+const USD_TO_INR = 83.5;
 
-// Enrich campaigns with Kelkoo data
-export const enrichedCampaigns: Campaign[] = campaigns.map(campaign => {
-    // Check if campaign ends with KL (case insensitive)
-    const isKelkoo = campaign.name.toLowerCase().endsWith("-kl");
+// AI-based campaign health score calculator
+function calculateHealthScore(campaign: Campaign): number {
+    let score = 50; // Base score
 
-    if (!isKelkoo) {
-        return { ...campaign, isKelkoo: false };
+    // CTR factor (higher is better)
+    if (campaign.ctr >= 15) score += 15;
+    else if (campaign.ctr >= 10) score += 10;
+    else if (campaign.ctr >= 5) score += 5;
+    else score -= 10;
+
+    // Conversion rate factor
+    if (campaign.conversionRate >= 50) score += 15;
+    else if (campaign.conversionRate >= 30) score += 10;
+    else if (campaign.conversionRate >= 15) score += 5;
+    else score -= 10;
+
+    // Optimization score factor
+    if (campaign.optimizationScore >= 80) score += 10;
+    else if (campaign.optimizationScore >= 60) score += 5;
+    else score -= 5;
+
+    // Status reasons factor
+    if (!campaign.statusReasons || campaign.statusReasons === "") score += 10;
+    else if (campaign.statusReasons.includes("learning")) score -= 5;
+    else if (campaign.statusReasons.includes("limited")) score -= 10;
+
+    return Math.max(0, Math.min(100, score));
+}
+
+// AI-based efficiency rating
+function calculateEfficiencyRating(campaign: Campaign): string {
+    const healthScore = calculateHealthScore(campaign);
+
+    if (healthScore >= 80 && campaign.conversionRate >= 50) return "A";
+    if (healthScore >= 65 && campaign.conversionRate >= 35) return "B";
+    if (healthScore >= 50 && campaign.conversionRate >= 20) return "C";
+    if (healthScore >= 35) return "D";
+    return "F";
+}
+
+// AI-based risk level assessment
+function calculateRiskLevel(campaign: Campaign): string {
+    const issues = [];
+    
+    if (campaign.ctr < 5) issues.push("low_ctr");
+    if (campaign.conversionRate < 20) issues.push("low_conv");
+    if (campaign.statusReasons?.includes("limited")) issues.push("limited");
+    if (campaign.optimizationScore < 60) issues.push("low_opt");
+    if ((campaign.searchImprShare || 0) < 20) issues.push("low_share");
+
+    if (issues.length >= 3) return "High";
+    if (issues.length >= 1) return "Medium";
+    return "Low";
+}
+
+// AI-based recommended action
+function getRecommendedAction(campaign: Campaign): string {
+    const healthScore = calculateHealthScore(campaign);
+    const riskLevel = calculateRiskLevel(campaign);
+
+    if (riskLevel === "High") {
+        if (campaign.ctr < 5) return "Review ad copy and targeting - CTR critically low";
+        if (campaign.conversionRate < 20) return "Optimize landing pages - conversion rate needs improvement";
+        return "Comprehensive audit recommended - multiple issues detected";
     }
 
-    // Calculate KL campaigns total clicks for proportional distribution
-    const klCampaigns = campaigns.filter(c => c.name.toLowerCase().endsWith("-kl"));
-    const totalKLClicks = klCampaigns.reduce((sum, c) => sum + c.clicks, 0);
+    if (healthScore >= 80) return "Increase budget - campaign performing excellently";
+    if (healthScore >= 60) return "Monitor closely - consider A/B testing";
+    if (campaign.statusReasons?.includes("learning")) return "Allow learning phase to complete";
+    if (campaign.statusReasons?.includes("limited")) return "Adjust bidding strategy or budget";
 
-    // Calculate proportional share based on clicks
-    const clickRatio = totalKLClicks > 0 ? campaign.clicks / totalKLClicks : 0;
+    return "Review campaign settings and targeting";
+}
 
-    const kelkooLeads = Math.round(kelkooTotals.leads * clickRatio);
-    const kelkooRevenue = Math.round(kelkooTotals.revenueEur * clickRatio * 100) / 100;
-    const kelkooSales = Math.round(kelkooTotals.sales * clickRatio);
-    const kelkooSaleValue = Math.round(kelkooTotals.saleValueEur * clickRatio * 100) / 100;
+// Enrich campaigns with Kelkoo, Admedia, and AI metrics
+export const enrichedCampaigns: Campaign[] = campaigns.map(campaign => {
+    // Check if campaign ends with KL or AM (case insensitive)
+    const isKelkoo = campaign.name.toLowerCase().endsWith("-kl");
+    const isAdmedia = campaign.name.toLowerCase().endsWith("-am");
 
-    const kelkooRevenueInr = Math.round(kelkooRevenue * EUR_TO_INR * 100) / 100;
-    const kelkooSaleValueInr = Math.round(kelkooSaleValue * EUR_TO_INR * 100) / 100;
+    // Calculate AI metrics for all campaigns
+    const healthScore = calculateHealthScore(campaign);
+    const efficiencyRating = calculateEfficiencyRating(campaign);
+    const riskLevel = calculateRiskLevel(campaign);
+    const recommendedAction = getRecommendedAction(campaign);
 
-    // Calculate actual ROAS: (Total Revenue in INR) / (Cost in INR)
-    const totalRevenueInr = kelkooRevenueInr + kelkooSaleValueInr;
-    const actualROAS = campaign.cost > 0 ? Math.round((totalRevenueInr / campaign.cost) * 100) / 100 : 0;
+    // Predicted ROAS based on current performance trends
+    const baseRoas = campaign.conversions > 0 ? (campaign.conversions * 500) / campaign.cost : 0;
+    const predictedROAS = Math.round(baseRoas * (1 + (healthScore - 50) / 100) * 100) / 100;
 
-    // Calculate profitability
-    const profitability = Math.round((totalRevenueInr - campaign.cost) * 100) / 100;
-
-    return {
+    // Base campaign with AI metrics
+    const baseCampaign = {
         ...campaign,
-        isKelkoo: true,
-        kelkooLeads,
-        kelkooRevenue,
-        kelkooRevenueInr,
-        kelkooSales,
-        kelkooSaleValue,
-        kelkooSaleValueInr,
-        actualROAS,
-        profitability,
+        healthScore,
+        efficiencyRating,
+        riskLevel,
+        recommendedAction,
+        predictedROAS,
     };
+
+    // Handle Kelkoo campaigns
+    if (isKelkoo) {
+        const klCampaigns = campaigns.filter(c => c.name.toLowerCase().endsWith("-kl"));
+        const totalKLClicks = klCampaigns.reduce((sum, c) => sum + c.clicks, 0);
+        const clickRatio = totalKLClicks > 0 ? campaign.clicks / totalKLClicks : 0;
+
+        const kelkooLeads = Math.round(kelkooTotals.leads * clickRatio);
+        const kelkooRevenue = Math.round(kelkooTotals.revenueEur * clickRatio * 100) / 100;
+        const kelkooSales = Math.round(kelkooTotals.sales * clickRatio);
+        const kelkooSaleValue = Math.round(kelkooTotals.saleValueEur * clickRatio * 100) / 100;
+
+        const kelkooRevenueInr = Math.round(kelkooRevenue * EUR_TO_INR * 100) / 100;
+        const kelkooSaleValueInr = Math.round(kelkooSaleValue * EUR_TO_INR * 100) / 100;
+
+        const totalRevenueInr = kelkooRevenueInr + kelkooSaleValueInr;
+        const actualROAS = campaign.cost > 0 ? Math.round((totalRevenueInr / campaign.cost) * 100) / 100 : 0;
+        const profitability = Math.round((totalRevenueInr - campaign.cost) * 100) / 100;
+
+        return {
+            ...baseCampaign,
+            isKelkoo: true,
+            isAdmedia: false,
+            kelkooLeads,
+            kelkooRevenue,
+            kelkooRevenueInr,
+            kelkooSales,
+            kelkooSaleValue,
+            kelkooSaleValueInr,
+            actualROAS,
+            profitability,
+        };
+    }
+
+    // Handle Admedia campaigns
+    if (isAdmedia) {
+        const amCampaigns = campaigns.filter(c => c.name.toLowerCase().endsWith("-am"));
+        const totalAMClicks = amCampaigns.reduce((sum, c) => sum + c.clicks, 0);
+        const clickRatio = totalAMClicks > 0 ? campaign.clicks / totalAMClicks : 0;
+
+        const admediaLeads = Math.round(admediaTotals.leads * clickRatio);
+        const admediaConversions = Math.round(admediaTotals.conversions * clickRatio);
+        const admediaEarnings = Math.round(admediaTotals.earningsUsd * clickRatio * 100) / 100;
+        const admediaEarningsInr = Math.round(admediaEarnings * USD_TO_INR * 100) / 100;
+
+        const actualROAS = campaign.cost > 0 ? Math.round((admediaEarningsInr / campaign.cost) * 100) / 100 : 0;
+        const profitability = Math.round((admediaEarningsInr - campaign.cost) * 100) / 100;
+
+        return {
+            ...baseCampaign,
+            isKelkoo: false,
+            isAdmedia: true,
+            admediaLeads,
+            admediaConversions,
+            admediaEarnings,
+            admediaEarningsInr,
+            actualROAS,
+            profitability,
+        };
+    }
+
+    return { ...baseCampaign, isKelkoo: false, isAdmedia: false };
 }).sort((a, b) => {
-    // Sort KL campaigns first
+    // Sort by data source first: KL, then AM, then others
     if (a.isKelkoo && !b.isKelkoo) return -1;
     if (!a.isKelkoo && b.isKelkoo) return 1;
+    if (a.isAdmedia && !b.isAdmedia) return -1;
+    if (!a.isAdmedia && b.isAdmedia) return 1;
     // Then sort by cost (highest first)
     return (b.cost || 0) - (a.cost || 0);
 });
 
-// Kelkoo totals for KL campaigns
+// Kelkoo totals for KL campaigns (CORRECTED values)
 export const kelkooAggregates = {
     totalLeads: kelkooTotals.leads,
     totalRevenueEur: kelkooTotals.revenueEur,
@@ -683,6 +829,27 @@ export const kelkooAggregates = {
     totalSales: kelkooTotals.sales,
     totalSaleValueEur: kelkooTotals.saleValueEur,
     totalSaleValueInr: Math.round(kelkooTotals.saleValueEur * EUR_TO_INR * 100) / 100,
-    conversionRate: 9.18,
+    cpc: kelkooTotals.cpc,
+    vpl: kelkooTotals.vpl,
+    conversionRate: (kelkooTotals.sales / kelkooTotals.leads) * 100,
     klCampaignCount: campaigns.filter(c => c.name.toLowerCase().endsWith("-kl")).length,
+};
+
+// Admedia totals for AM campaigns
+export const admediaAggregates = {
+    totalLeads: admediaTotals.leads,
+    totalConversions: admediaTotals.conversions,
+    totalEarningsUsd: admediaTotals.earningsUsd,
+    totalEarningsInr: Math.round(admediaTotals.earningsUsd * USD_TO_INR * 100) / 100,
+    conversionRate: (admediaTotals.conversions / admediaTotals.leads) * 100,
+    amCampaignCount: campaigns.filter(c => c.name.toLowerCase().endsWith("-am")).length,
+};
+
+// AI-based aggregate metrics
+export const aiMetrics = {
+    averageHealthScore: Math.round(enrichedCampaigns.reduce((sum, c) => sum + (c.healthScore || 0), 0) / enrichedCampaigns.length),
+    highPerformers: enrichedCampaigns.filter(c => c.efficiencyRating === "A" || c.efficiencyRating === "B").length,
+    atRiskCampaigns: enrichedCampaigns.filter(c => c.riskLevel === "High").length,
+    needsAttention: enrichedCampaigns.filter(c => c.riskLevel === "Medium").length,
+    totalPredictedROAS: Math.round(enrichedCampaigns.reduce((sum, c) => sum + (c.predictedROAS || 0), 0) / enrichedCampaigns.length * 100) / 100,
 };

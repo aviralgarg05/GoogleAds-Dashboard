@@ -95,20 +95,20 @@ export async function fetchKelkooData(startDate: string, endDate: string): Promi
     }
 }
 
-// Static Kelkoo data for Oct 1-31, 2025 (pre-fetched to avoid API calls on each page load)
-// This data was fetched from the Kelkoo API on 2025-12-08
+// Static Kelkoo data for Oct 1-31, 2025 (CORRECTED to match actual Kelkoo dashboard)
+// This data was verified against the Kelkoo dashboard screenshot on 2025-12-08
 export const kelkooOctoberData: KelkooMetrics = {
     clickCount: 5252,
     clickValidCount: 5101,
-    leadCount: 4651,
-    trackedLeadCount: 4649,
-    leadEstimatedRevenueInEur: 4158.34,
+    leadCount: 4507,  // Corrected from 4651 to match screenshot
+    trackedLeadCount: 4507,
+    leadEstimatedRevenueInEur: 3974.21,  // Corrected from 4158.34 to match screenshot
     leadRejectedCount: 450,
-    saleCount: 427,
-    saleValueInEur: 53035.42,
+    saleCount: 417,  // Corrected from 427 to match screenshot
+    saleValueInEur: 51393.35,  // Corrected from 53035.42 to match screenshot
     monetizedClickPercentage: 97.12,
-    crPercentage: 9.18,
-    valuePerLeadInEur: 11.4,
+    crPercentage: 9.25,  // Recalculated: 417/4507 * 100
+    valuePerLeadInEur: 11.4,  // From screenshot VPL
 };
 
 // Campaigns that use Kelkoo (ending with -KL)
