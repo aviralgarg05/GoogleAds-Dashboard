@@ -1,3 +1,4 @@
+// USD Column Fix - Deployed 2025-12-10
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -1004,10 +1005,10 @@ export default function DashboardPage() {
                         {value || 0}
                     </span>
                     <span className={`w-5 text-center px-1 py-0.5 rounded text-xs font-bold ${row.efficiencyRating === "A" ? "bg-emerald-500/20 text-emerald-400" :
-                            row.efficiencyRating === "B" ? "bg-cyan-500/20 text-cyan-400" :
-                                row.efficiencyRating === "C" ? "bg-amber-500/20 text-amber-400" :
-                                    row.efficiencyRating === "D" ? "bg-orange-500/20 text-orange-400" :
-                                        "bg-rose-500/20 text-rose-400"
+                        row.efficiencyRating === "B" ? "bg-cyan-500/20 text-cyan-400" :
+                            row.efficiencyRating === "C" ? "bg-amber-500/20 text-amber-400" :
+                                row.efficiencyRating === "D" ? "bg-orange-500/20 text-orange-400" :
+                                    "bg-rose-500/20 text-rose-400"
                         }`}>
                         {row.efficiencyRating || "-"}
                     </span>
@@ -1729,8 +1730,8 @@ export default function DashboardPage() {
                                 key={key}
                                 onClick={() => setNetworkFilter(key)}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${networkFilter === key
-                                        ? `${color} text-white shadow-lg`
-                                        : "bg-gray-700/50 text-gray-400 hover:bg-gray-700 hover:text-white"
+                                    ? `${color} text-white shadow-lg`
+                                    : "bg-gray-700/50 text-gray-400 hover:bg-gray-700 hover:text-white"
                                     }`}
                             >
                                 {label}
