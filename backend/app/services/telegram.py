@@ -105,38 +105,46 @@ class TelegramService:
         Returns:
             dict with status
         """
-        emoji = "📈" if direction == "up" else "📉"
-        trend = "increased" if direction == "up" else "decreased"
-        alert_type = "🟢" if direction == "up" else "🔴"
+        trend = "INCREASED" if direction == "up" else "DECREASED"
+        alert_type = "[SPIKE UP]" if direction == "up" else "[SPIKE DOWN]"
+        dashboard_url = os.getenv('FRONTEND_URL', 'https://googleadsdashboard-beta.vercel.app')
         
         message = f"""
-{alert_type} *SPIKE ALERT*
+*SPIKE ALERT* {alert_type}
+━━━━━━━━━━━━━━━━━━━━━━━━
 
 *Network:* {network}
 *Metric:* {metric_name}
-*Change:* {emoji} {trend} by *{abs(change_percent):.1f}%*
+*Change:* {trend} by *{abs(change_percent):.1f}%*
 
-📊 *Previous:* {previous_value:,.2f}
-📊 *Current:* {current_value:,.2f}
+*Previous:* {previous_value:,.2f}
+*Current:* {current_value:,.2f}
 
-_TellSpike Dashboard Alert_
-🔗 [View Dashboard](https://googleadsdashboard-beta.vercel.app/dashboard)
+━━━━━━━━━━━━━━━━━━━━━━━━
+[View Dashboard]({dashboard_url}/dashboard/alerts)
 """
         return await self.send_message(message.strip())
     
     async def send_test_message(self) -> dict:
         """Send a test message to verify configuration."""
-        message = """
-✅ *TellSpike Alert System Connected!*
+        threshold = os.getenv('SPIKE_THRESHOLD_PERCENT', '20')
+        dashboard_url = os.getenv('FRONTEND_URL', 'https://googleadsdashboard-beta.vercel.app')
+        
+        message = f"""
+*TellSpike Alert System*
+━━━━━━━━━━━━━━━━━━━━━━━━
 
-Your Telegram notifications are working.
+Status: CONNECTED
 
-You will receive alerts when:
-• Kelkoo metrics change by >20%
-• Admedia metrics change by >20%
-• MaxBounty metrics change by >20%
+Telegram notifications are working.
 
-_Threshold can be configured via SPIKE\\_THRESHOLD\\_PERCENT_
+*Alert Triggers:*
+  - Kelkoo metrics change >{threshold}%
+  - Admedia metrics change >{threshold}%
+  - MaxBounty metrics change >{threshold}%
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+[Open Dashboard]({dashboard_url}/dashboard)
 """
         return await self.send_message(message.strip())
 
