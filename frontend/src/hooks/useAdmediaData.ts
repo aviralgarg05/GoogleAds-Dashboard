@@ -36,7 +36,7 @@ interface UseAdmediaDataResult {
     refetch: () => void;
 }
 
-const USD_TO_INR = 83.5;
+const USD_TO_INR = 85;
 
 export function useAdmediaData(
     startDate: string = "2025-10-01",

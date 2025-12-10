@@ -188,10 +188,10 @@ const InfoTooltip = ({ content, children }: { content: React.ReactNode; children
 
     return (
         <>
-            <span 
+            <span
                 ref={triggerRef}
-                className="relative inline-flex items-center gap-1 cursor-help" 
-                onMouseEnter={handleMouseEnter} 
+                className="relative inline-flex items-center gap-1 cursor-help"
+                onMouseEnter={handleMouseEnter}
                 onMouseLeave={() => setShow(false)}
             >
                 {children}
@@ -200,10 +200,10 @@ const InfoTooltip = ({ content, children }: { content: React.ReactNode; children
                 </svg>
             </span>
             {show && typeof document !== 'undefined' && createPortal(
-                <div 
+                <div
                     className="fixed z-[9999] w-72 p-4 bg-gray-900 border border-cyan-500/30 rounded-xl shadow-2xl shadow-cyan-500/10 text-xs text-gray-300 leading-relaxed animate-fade-in pointer-events-none"
-                    style={{ 
-                        top: position.top, 
+                    style={{
+                        top: position.top,
                         left: position.left,
                         transform: 'translate(-50%, -100%)'
                     }}
@@ -936,11 +936,11 @@ export default function DashboardPage() {
                 </button>
             )
         },
-        { 
-            key: "clicks", 
-            header: "Clicks", 
-            format: "number" as const, 
-            align: "right" as const, 
+        {
+            key: "clicks",
+            header: "Clicks",
+            format: "number" as const,
+            align: "right" as const,
             sortable: true,
             render: (value: number, row: Campaign) => (
                 <div className="text-right">
@@ -949,10 +949,10 @@ export default function DashboardPage() {
                 </div>
             )
         },
-        { 
-            key: "cost", 
-            header: "Cost", 
-            align: "right" as const, 
+        {
+            key: "cost",
+            header: "Cost",
+            align: "right" as const,
             sortable: true,
             render: (value: number, row: Campaign) => (
                 <div className="text-right">
@@ -961,10 +961,10 @@ export default function DashboardPage() {
                 </div>
             )
         },
-        { 
-            key: "conversions", 
-            header: "Conv.", 
-            align: "right" as const, 
+        {
+            key: "conversions",
+            header: "Conv.",
+            align: "right" as const,
             sortable: true,
             render: (value: number, row: Campaign) => (
                 <div className="text-right">
@@ -989,7 +989,7 @@ export default function DashboardPage() {
         {
             key: "healthScore",
             header: (
-                <InfoTooltip content={<><strong>Health Score (0-100):</strong><br/>• CTR: 30 pts<br/>• Conv Rate: 30 pts<br/>• Opt Score: 20 pts<br/>• Budget util: 20 pts<br/><br/><strong>Efficiency Rating (A-F):</strong><br/>Based on conversions per ₹1000 spend</>}>
+                <InfoTooltip content={<><strong>Health Score (0-100):</strong><br />• CTR: 30 pts<br />• Conv Rate: 30 pts<br />• Opt Score: 20 pts<br />• Budget util: 20 pts<br /><br /><strong>Efficiency Rating (A-F):</strong><br />Based on conversions per ₹1000 spend</>}>
                     <span>Score</span>
                 </InfoTooltip>
             ) as unknown as string,
@@ -1003,13 +1003,12 @@ export default function DashboardPage() {
                         }`}>
                         {value || 0}
                     </span>
-                    <span className={`w-5 text-center px-1 py-0.5 rounded text-xs font-bold ${
-                        row.efficiencyRating === "A" ? "bg-emerald-500/20 text-emerald-400" :
-                        row.efficiencyRating === "B" ? "bg-cyan-500/20 text-cyan-400" :
-                        row.efficiencyRating === "C" ? "bg-amber-500/20 text-amber-400" :
-                        row.efficiencyRating === "D" ? "bg-orange-500/20 text-orange-400" :
-                            "bg-rose-500/20 text-rose-400"
-                    }`}>
+                    <span className={`w-5 text-center px-1 py-0.5 rounded text-xs font-bold ${row.efficiencyRating === "A" ? "bg-emerald-500/20 text-emerald-400" :
+                            row.efficiencyRating === "B" ? "bg-cyan-500/20 text-cyan-400" :
+                                row.efficiencyRating === "C" ? "bg-amber-500/20 text-amber-400" :
+                                    row.efficiencyRating === "D" ? "bg-orange-500/20 text-orange-400" :
+                                        "bg-rose-500/20 text-rose-400"
+                        }`}>
                         {row.efficiencyRating || "-"}
                     </span>
                 </div>
@@ -1018,7 +1017,7 @@ export default function DashboardPage() {
         {
             key: "kelkooLeads",
             header: (
-                <InfoTooltip content={<><strong>Partner Data:</strong><br/>• Leads/clicks from affiliate network<br/>• Revenue in INR (commission only)<br/><br/><em>Allocated by click ratio within network.</em></>}>
+                <InfoTooltip content={<><strong>Partner Data:</strong><br />• Leads/clicks from affiliate network<br />• Revenue in INR (commission only)<br /><br /><em>Allocated by click ratio within network.</em></>}>
                     <span>Partner Data</span>
                 </InfoTooltip>
             ) as unknown as string,
@@ -1055,9 +1054,30 @@ export default function DashboardPage() {
             },
         },
         {
+            key: "earningsUsd",
+            header: "Earnings (USD)",
+            align: "right" as const,
+            sortable: true,
+            render: (_value: number | undefined, row: Campaign & { isKelkoo?: boolean; isAdmedia?: boolean; isMaxBounty?: boolean; kelkooRevenueEur?: number; admediaEarningsUsd?: number; maxBountyEarningsUsd?: number }) => {
+                if (row.isKelkoo) {
+                    // Kelkoo is in EUR, convert to USD (EUR to USD approx 1.08)
+                    const eurToUsd = 1.08;
+                    const usdValue = (row.kelkooRevenueEur || 0) * eurToUsd;
+                    return <span className="text-cyan-400 font-medium">${usdValue.toFixed(2)}</span>;
+                }
+                if (row.isAdmedia) {
+                    return <span className="text-amber-400 font-medium">${(row.admediaEarningsUsd || 0).toFixed(2)}</span>;
+                }
+                if (row.isMaxBounty) {
+                    return <span className="text-rose-400 font-medium">${(row.maxBountyEarningsUsd || 0).toFixed(2)}</span>;
+                }
+                return <span className="text-gray-600">-</span>;
+            },
+        },
+        {
             key: "actualROAS",
             header: (
-                <InfoTooltip content={<><strong>ROAS (Return on Ad Spend):</strong><br/>Partner Revenue (INR) ÷ Ad Cost<br/><br/>• &gt;1.0x = Profitable<br/>• &lt;1.0x = Loss<br/><br/><strong>Profit/Loss:</strong><br/>Revenue - Cost</>}>
+                <InfoTooltip content={<><strong>ROAS (Return on Ad Spend):</strong><br />Partner Revenue (INR) ÷ Ad Cost<br /><br />• &gt;1.0x = Profitable<br />• &lt;1.0x = Loss<br /><br /><strong>Profit/Loss:</strong><br />Revenue - Cost</>}>
                     <span>ROAS</span>
                 </InfoTooltip>
             ) as unknown as string,
@@ -1163,7 +1183,7 @@ export default function DashboardPage() {
 
             {/* AI Metrics Summary Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <button 
+                <button
                     onClick={() => setDetailModal({
                         type: "health",
                         title: "Campaign Health Analysis",
@@ -1182,7 +1202,7 @@ export default function DashboardPage() {
                     <p className="text-2xl font-bold text-white">{aiMetrics.averageHealthScore}</p>
                     <p className="text-xs text-gray-500 mt-1">Out of 100</p>
                 </button>
-                <button 
+                <button
                     onClick={() => setDetailModal({
                         type: "performers",
                         title: "High Performing Campaigns",
@@ -1200,7 +1220,7 @@ export default function DashboardPage() {
                     <p className="text-2xl font-bold text-emerald-400">{aiMetrics.highPerformers}</p>
                     <p className="text-xs text-gray-500 mt-1">A/B Rated Campaigns</p>
                 </button>
-                <button 
+                <button
                     onClick={() => setDetailModal({
                         type: "attention",
                         title: "Campaigns Needing Attention",
@@ -1218,7 +1238,7 @@ export default function DashboardPage() {
                     <p className="text-2xl font-bold text-amber-400">{aiMetrics.needsAttention}</p>
                     <p className="text-xs text-gray-500 mt-1">Medium Risk</p>
                 </button>
-                <button 
+                <button
                     onClick={() => setDetailModal({
                         type: "risk",
                         title: "At Risk Campaigns",
@@ -1252,7 +1272,7 @@ export default function DashboardPage() {
                         ) : (
                             <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">Live</span>
                         )}
-                        <button 
+                        <button
                             onClick={(e) => {
                                 e.stopPropagation();
                                 refetchKelkoo();
@@ -1265,7 +1285,7 @@ export default function DashboardPage() {
                         </button>
                         {kelkooError && <span className="text-xs text-red-400">{kelkooError}</span>}
                     </div>
-                    <div 
+                    <div
                         className="grid grid-cols-3 gap-4 cursor-pointer hover:bg-cyan-900/10 rounded-lg p-2 -m-2 transition-colors"
                         onClick={() => setDetailModal({
                             type: "kelkoo",
@@ -1345,7 +1365,7 @@ export default function DashboardPage() {
                         ) : (
                             <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">Live</span>
                         )}
-                        <button 
+                        <button
                             onClick={(e) => {
                                 e.stopPropagation();
                                 refetchAdmedia();
@@ -1358,7 +1378,7 @@ export default function DashboardPage() {
                         </button>
                         {admediaError && <span className="text-xs text-red-400">{admediaError}</span>}
                     </div>
-                    <div 
+                    <div
                         className="grid grid-cols-3 gap-4 cursor-pointer hover:bg-amber-900/10 rounded-lg p-2 -m-2 transition-colors"
                         onClick={() => setDetailModal({
                             type: "admedia",
@@ -1419,7 +1439,7 @@ export default function DashboardPage() {
                         ) : (
                             <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">Live</span>
                         )}
-                        <button 
+                        <button
                             onClick={(e) => {
                                 e.stopPropagation();
                                 refetchMaxBounty();
@@ -1432,7 +1452,7 @@ export default function DashboardPage() {
                         </button>
                         {maxBountyError && <span className="text-xs text-red-400">{maxBountyError}</span>}
                     </div>
-                    <div 
+                    <div
                         className="grid grid-cols-3 gap-4 cursor-pointer hover:bg-rose-900/10 rounded-lg p-2 -m-2 transition-colors"
                         onClick={() => setDetailModal({
                             type: "maxbounty",
@@ -1708,11 +1728,10 @@ export default function DashboardPage() {
                             <button
                                 key={key}
                                 onClick={() => setNetworkFilter(key)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
-                                    networkFilter === key
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${networkFilter === key
                                         ? `${color} text-white shadow-lg`
                                         : "bg-gray-700/50 text-gray-400 hover:bg-gray-700 hover:text-white"
-                                }`}
+                                    }`}
                             >
                                 {label}
                                 <span className={`px-1.5 py-0.5 rounded text-[10px] ${networkFilter === key ? "bg-white/20" : "bg-gray-600"}`}>{count}</span>
@@ -1729,7 +1748,7 @@ export default function DashboardPage() {
                                 </div>
                                 <div className="text-right">
                                     <p className={`text-base font-bold ${networkComparison.kelkoo.roas >= 1 ? "text-emerald-400" : "text-red-400"}`}>{networkComparison.kelkoo.roas.toFixed(2)}x</p>
-                                    <p className="text-[10px] text-gray-400">₹{(networkComparison.kelkoo.revenueInr/1000).toFixed(0)}k rev</p>
+                                    <p className="text-[10px] text-gray-400">₹{(networkComparison.kelkoo.revenueInr / 1000).toFixed(0)}k rev</p>
                                 </div>
                             </div>
                         </div>
@@ -1740,7 +1759,7 @@ export default function DashboardPage() {
                                 </div>
                                 <div className="text-right">
                                     <p className={`text-base font-bold ${networkComparison.admedia.roas >= 1 ? "text-emerald-400" : "text-red-400"}`}>{networkComparison.admedia.roas.toFixed(2)}x</p>
-                                    <p className="text-[10px] text-gray-400">₹{(networkComparison.admedia.revenueInr/1000).toFixed(0)}k rev</p>
+                                    <p className="text-[10px] text-gray-400">₹{(networkComparison.admedia.revenueInr / 1000).toFixed(0)}k rev</p>
                                 </div>
                             </div>
                         </div>
@@ -1751,7 +1770,7 @@ export default function DashboardPage() {
                                 </div>
                                 <div className="text-right">
                                     <p className={`text-base font-bold ${networkComparison.maxbounty.roas >= 1 ? "text-emerald-400" : "text-red-400"}`}>{networkComparison.maxbounty.roas.toFixed(2)}x</p>
-                                    <p className="text-[10px] text-gray-400">₹{(networkComparison.maxbounty.revenueInr/1000).toFixed(0)}k rev</p>
+                                    <p className="text-[10px] text-gray-400">₹{(networkComparison.maxbounty.revenueInr / 1000).toFixed(0)}k rev</p>
                                 </div>
                             </div>
                         </div>

@@ -108,7 +108,7 @@ export function formatMaxBountyPercentage(value: number): string {
     return `${value.toFixed(2)}%`;
 }
 
-const USD_TO_INR = 83.5;
+const USD_TO_INR = 85;
 
 // Calculate campaign-specific MaxBounty metrics based on click ratio
 export function calculateCampaignMaxBountyData(

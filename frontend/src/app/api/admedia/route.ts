@@ -9,7 +9,7 @@ const ADMEDIA_AID = process.env.ADMEDIA_AID;
 const ADMEDIA_API_KEY = process.env.ADMEDIA_API_KEY;
 
 // USD to INR conversion rate (static for now; update if finance team provides new rate)
-const USD_TO_INR = 83.5;
+const USD_TO_INR = 85;
 
 interface AdmediaMetrics {
     clicks: number;

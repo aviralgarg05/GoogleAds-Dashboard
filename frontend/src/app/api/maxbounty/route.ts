@@ -11,7 +11,7 @@ const MAXBOUNTY_EMAIL = process.env.MAXBOUNTY_EMAIL;
 const MAXBOUNTY_PASSWORD = process.env.MAXBOUNTY_PASSWORD;
 
 // USD to INR conversion rate
-const USD_TO_INR = 83.5;
+const USD_TO_INR = 85;
 
 interface MaxBountyAuthResponse {
     success: boolean;
@@ -136,7 +136,7 @@ async function fetchEarningsReport(
     endDate: string
 ): Promise<MaxBountyReportResponse> {
     const url = `${MAXBOUNTY_API_BASE}/reports/earnings?startDate=${startDate}&endDate=${endDate}`;
-    
+
     const response = await fetch(url, {
         method: "GET",
         headers: {

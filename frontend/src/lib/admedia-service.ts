@@ -38,7 +38,7 @@ export interface AdmediaCampaignData {
 }
 
 // USD to INR conversion rate
-export const USD_TO_INR = 83.5;
+export const USD_TO_INR = 85;
 
 // EUR to INR conversion rate
 export const EUR_TO_INR = 89.5;
@@ -145,7 +145,7 @@ export async function fetchAdmediaData(startDate: string, endDate: string): Prom
     try {
         // Admedia Publisher API endpoint for stats
         const url = `${ADMEDIA_API_BASE}/stats?aid=${ADMEDIA_AID}&start_date=${startDate}&end_date=${endDate}`;
-        
+
         const response = await fetch(url, {
             method: "GET",
             headers: {

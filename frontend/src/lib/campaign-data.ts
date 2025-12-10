@@ -653,7 +653,7 @@ const admediaTotals = {
 };
 
 const EUR_TO_INR = 89.5;
-const USD_TO_INR = 83.5;
+const USD_TO_INR = 85;
 
 // AI-based campaign health score calculator
 function calculateHealthScore(campaign: Campaign): number {
@@ -788,6 +788,7 @@ export const enrichedCampaigns: Campaign[] = campaigns.map(campaign => {
             isMaxBounty: false,
             kelkooLeads,
             kelkooRevenue,
+            kelkooRevenueEur: kelkooRevenue, // EUR value for USD column conversion
             kelkooRevenueInr,
             kelkooSales,
             kelkooSaleValue,
@@ -819,6 +820,7 @@ export const enrichedCampaigns: Campaign[] = campaigns.map(campaign => {
             admediaLeads,
             admediaConversions,
             admediaEarnings,
+            admediaEarningsUsd: admediaEarnings, // USD value for column display
             admediaEarningsInr,
             actualROAS,
             profitability,
@@ -836,6 +838,7 @@ export const enrichedCampaigns: Campaign[] = campaigns.map(campaign => {
             maxBountyLeads: 0,
             maxBountySales: 0,
             maxBountyEarnings: 0,
+            maxBountyEarningsUsd: 0, // USD value for column display
             maxBountyEarningsInr: 0,
             actualROAS: 0,
             profitability: 0,
