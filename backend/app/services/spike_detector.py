@@ -6,15 +6,75 @@ import os
 import json
 import logging
 import httpx
+from enum import Enum
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 # File to store previous metrics for comparison
 METRICS_CACHE_FILE = Path("/tmp/tellspike_metrics_cache.json")
+
+
+# Backward compatibility classes for app/tasks/alerts.py
+class AlertType(Enum):
+    """Type of alert."""
+    POSITIVE_SPIKE = "positive_spike"
+    NEGATIVE_SPIKE = "negative_spike"
+    VOLUME_ANOMALY = "volume_anomaly"
+    TREND_CHANGE = "trend_change"
+
+
+class AlertSeverity(Enum):
+    """Severity level of alert."""
+    INFO = "info"
+    WARNING = "warning"
+    CRITICAL = "critical"
+
+
+@dataclass
+class DetectionConfig:
+    """Configuration for spike detection (backward compatibility)."""
+    z_score_threshold: float = 2.5
+    min_percent_change: float = 20.0
+    lookback_days: int = 14
+    metrics_to_monitor: List[str] = field(default_factory=lambda: [
+        "impressions", "clicks", "cost", "conversions", "ctr", "cpc", "cpa"
+    ])
+
+
+@dataclass
+class SpikeAlert:
+    """Represents a spike alert (backward compatibility)."""
+    metric: str
+    alert_type: AlertType
+    severity: AlertSeverity
+    message: str
+    current_value: float
+    previous_value: float
+    percent_change: float
+    z_score: float
+    campaign_id: str
+    campaign_name: str
+    detected_at: datetime = field(default_factory=datetime.now)
+    
+    def to_dict(self) -> dict:
+        """Convert to dictionary."""
+        return {
+            "metric": self.metric,
+            "alert_type": self.alert_type.value,
+            "severity": self.severity.value,
+            "message": self.message,
+            "current_value": self.current_value,
+            "previous_value": self.previous_value,
+            "percent_change": self.percent_change,
+            "z_score": self.z_score,
+            "campaign_id": self.campaign_id,
+            "campaign_name": self.campaign_name,
+            "detected_at": self.detected_at.isoformat()
+        }
 
 
 @dataclass
@@ -61,6 +121,81 @@ class SpikeDetector:
                 json.dump(metrics, f)
         except Exception as e:
             logger.error(f"Failed to save metrics: {e}")
+    
+    def analyze_metrics_batch(
+        self,
+        metrics: Dict[str, float],
+        historical_metrics: Dict[str, List[float]],
+        campaign_id: str,
+        campaign_name: str
+    ) -> List[SpikeAlert]:
+        """
+        Analyze metrics for spikes (backward compatibility for app/tasks/alerts.py).
+        
+        Args:
+            metrics: Current metric values
+            historical_metrics: Historical values for each metric
+            campaign_id: Campaign ID
+            campaign_name: Campaign name
+            
+        Returns:
+            List of SpikeAlert objects
+        """
+        import statistics
+        alerts = []
+        
+        for metric_name, current_value in metrics.items():
+            historical = historical_metrics.get(metric_name, [])
+            
+            if len(historical) < 3:
+                continue
+            
+            # Calculate statistics
+            mean = statistics.mean(historical)
+            stdev = statistics.stdev(historical) if len(historical) > 1 else 0
+            
+            if stdev == 0:
+                continue
+            
+            # Calculate Z-score
+            z_score = (current_value - mean) / stdev
+            
+            # Calculate percent change from mean
+            percent_change = ((current_value - mean) / mean * 100) if mean != 0 else 0
+            
+            # Check if this is a spike
+            if abs(z_score) >= 2.5 or abs(percent_change) >= self.threshold:
+                # Determine alert type and severity
+                if z_score > 0:
+                    alert_type = AlertType.POSITIVE_SPIKE
+                else:
+                    alert_type = AlertType.NEGATIVE_SPIKE
+                
+                if abs(z_score) >= 3.5:
+                    severity = AlertSeverity.CRITICAL
+                elif abs(z_score) >= 2.5:
+                    severity = AlertSeverity.WARNING
+                else:
+                    severity = AlertSeverity.INFO
+                
+                direction = "increased" if z_score > 0 else "decreased"
+                message = f"Campaign '{campaign_name}': {metric_name.upper()} {direction} by {abs(percent_change):.1f}%"
+                
+                alert = SpikeAlert(
+                    metric=metric_name,
+                    alert_type=alert_type,
+                    severity=severity,
+                    message=message,
+                    current_value=current_value,
+                    previous_value=mean,
+                    percent_change=percent_change,
+                    z_score=z_score,
+                    campaign_id=campaign_id,
+                    campaign_name=campaign_name
+                )
+                alerts.append(alert)
+        
+        return alerts
     
     async def fetch_kelkoo_data(self) -> Optional[Dict[str, Any]]:
         """Fetch current Kelkoo data from the frontend API."""
