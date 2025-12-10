@@ -1,10 +1,10 @@
 """Services package initialization."""
-from .whatsapp import WhatsAppService, get_whatsapp_service
+from .telegram import TelegramService, get_telegram_service
 from .spike_detector import SpikeDetector, get_spike_detector, MetricChange
 
 __all__ = [
-    "WhatsAppService",
-    "get_whatsapp_service",
+    "TelegramService",
+    "get_telegram_service",
     "SpikeDetector",
     "get_spike_detector",
     "MetricChange",

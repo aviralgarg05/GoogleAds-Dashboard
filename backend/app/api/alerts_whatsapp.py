@@ -1,13 +1,13 @@
 """
-WhatsApp Alert API Routes
+Telegram Alert API Routes
+FREE spike notifications via Telegram Bot
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
 
-from ..services import get_whatsapp_service, get_spike_detector
+from ..services import get_telegram_service, get_spike_detector
 
-router = APIRouter(prefix="/api/alerts", tags=["alerts"])
+router = APIRouter(prefix="/api/alerts", tags=["Telegram Alerts"])
 
 
 class TestMessageRequest(BaseModel):
@@ -17,7 +17,7 @@ class TestMessageRequest(BaseModel):
 
 class ConfigResponse(BaseModel):
     """Response showing current alert configuration."""
-    whatsapp_configured: bool
+    telegram_configured: bool
     spike_threshold_percent: float
     frontend_url: str
 
@@ -25,11 +25,11 @@ class ConfigResponse(BaseModel):
 @router.get("/config")
 async def get_alert_config() -> ConfigResponse:
     """Get current alert configuration status."""
-    whatsapp = get_whatsapp_service()
+    telegram = await get_telegram_service()
     detector = get_spike_detector()
     
     return ConfigResponse(
-        whatsapp_configured=whatsapp.is_configured,
+        telegram_configured=telegram.is_configured,
         spike_threshold_percent=detector.threshold,
         frontend_url=detector.frontend_url
     )
@@ -49,17 +49,17 @@ async def check_spikes():
 @router.post("/test-message")
 async def send_test_message(request: TestMessageRequest):
     """
-    Send a test WhatsApp message to verify configuration.
+    Send a test Telegram message to verify configuration.
     """
-    whatsapp = get_whatsapp_service()
+    telegram = await get_telegram_service()
     
-    if not whatsapp.is_configured:
+    if not telegram.is_configured:
         raise HTTPException(
             status_code=503,
-            detail="WhatsApp service not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and ALERT_WHATSAPP_NUMBER environment variables."
+            detail="Telegram service not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID environment variables."
         )
     
-    result = whatsapp.send_message(request.message)
+    result = await telegram.send_message(request.message)
     
     if not result.get("success"):
         raise HTTPException(
@@ -70,22 +70,50 @@ async def send_test_message(request: TestMessageRequest):
     return result
 
 
+@router.post("/test-connection")
+async def test_telegram_connection():
+    """
+    Send a test connection message to verify Telegram bot setup.
+    """
+    telegram = await get_telegram_service()
+    
+    if not telegram.is_configured:
+        raise HTTPException(
+            status_code=503,
+            detail="Telegram service not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID"
+        )
+    
+    result = await telegram.send_test_message()
+    
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=500,
+            detail=result.get("error", "Failed to send test message")
+        )
+    
+    return {
+        "success": True,
+        "message": "Telegram connected successfully! Check your Telegram for the welcome message.",
+        "message_id": result.get("message_id")
+    }
+
+
 @router.post("/test-spike-alert")
 async def send_test_spike_alert():
     """
     Send a test spike alert to verify the alert format.
     """
-    whatsapp = get_whatsapp_service()
+    telegram = await get_telegram_service()
     
-    if not whatsapp.is_configured:
+    if not telegram.is_configured:
         raise HTTPException(
             status_code=503,
-            detail="WhatsApp service not configured"
+            detail="Telegram service not configured"
         )
     
-    result = whatsapp.send_spike_alert(
-        metric_name="Test Metric",
-        network="Test Network",
+    result = await telegram.send_spike_alert(
+        metric_name="Test Revenue",
+        network="Kelkoo",
         current_value=1500.00,
         previous_value=1000.00,
         change_percent=50.0,
@@ -98,4 +126,8 @@ async def send_test_spike_alert():
             detail=result.get("error", "Failed to send test alert")
         )
     
-    return result
+    return {
+        "success": True,
+        "message": "Test spike alert sent! Check your Telegram.",
+        "message_id": result.get("message_id")
+    }

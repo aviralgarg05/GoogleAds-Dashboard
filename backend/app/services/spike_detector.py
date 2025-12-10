@@ -1,16 +1,15 @@
 """
 Spike Detection Service for Campaign Metrics
+Uses Telegram Bot for FREE notifications
 """
 import os
 import json
 import logging
 import httpx
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
-
-from .whatsapp import get_whatsapp_service
 
 logger = logging.getLogger(__name__)
 
@@ -229,11 +228,13 @@ class SpikeDetector:
     
     async def check_and_alert(self) -> Dict[str, Any]:
         """
-        Check for spikes and send WhatsApp alerts.
+        Check for spikes and send Telegram alerts.
         
         Returns:
             dict with check results
         """
+        from .telegram import get_telegram_service
+        
         spikes = await self.check_for_spikes()
         
         if not spikes:
@@ -243,13 +244,13 @@ class SpikeDetector:
                 "message": "No spikes detected"
             }
         
-        # Send WhatsApp alerts for each spike
-        whatsapp = get_whatsapp_service()
+        # Send Telegram alerts for each spike
+        telegram = await get_telegram_service()
         alerts_sent = 0
         alert_results = []
         
         for spike in spikes:
-            result = whatsapp.send_spike_alert(
+            result = await telegram.send_spike_alert(
                 metric_name=spike.metric_name,
                 network=spike.network,
                 current_value=spike.current_value,
