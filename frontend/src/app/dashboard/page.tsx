@@ -1059,18 +1059,22 @@ export default function DashboardPage() {
             header: "Earnings (USD)",
             align: "right" as const,
             sortable: true,
-            render: (_value: number | undefined, row: Campaign & { isKelkoo?: boolean; isAdmedia?: boolean; isMaxBounty?: boolean; kelkooRevenueEur?: number; admediaEarningsUsd?: number; maxBountyEarningsUsd?: number }) => {
-                if (row.isKelkoo) {
-                    // Kelkoo is in EUR, convert to USD (EUR to USD approx 1.08)
-                    const eurToUsd = 1.08;
-                    const usdValue = (row.kelkooRevenueEur || 0) * eurToUsd;
+            render: (_value: number | undefined, row: Campaign & { isKelkoo?: boolean; isAdmedia?: boolean; isMaxBounty?: boolean; kelkooRevenue?: number; kelkooRevenueInr?: number; admediaEarnings?: number; admediaEarningsInr?: number; maxBountyEarnings?: number; maxBountyEarningsInr?: number }) => {
+                // EUR to USD conversion rate
+                const eurToUsd = 1.08;
+
+                if (row.isKelkoo && row.kelkooRevenue) {
+                    // kelkooRevenue is in EUR, convert to USD
+                    const usdValue = row.kelkooRevenue * eurToUsd;
                     return <span className="text-cyan-400 font-medium">${usdValue.toFixed(2)}</span>;
                 }
-                if (row.isAdmedia) {
-                    return <span className="text-amber-400 font-medium">${(row.admediaEarningsUsd || 0).toFixed(2)}</span>;
+                if (row.isAdmedia && row.admediaEarnings) {
+                    // admediaEarnings is already in USD
+                    return <span className="text-amber-400 font-medium">${row.admediaEarnings.toFixed(2)}</span>;
                 }
-                if (row.isMaxBounty) {
-                    return <span className="text-rose-400 font-medium">${(row.maxBountyEarningsUsd || 0).toFixed(2)}</span>;
+                if (row.isMaxBounty && row.maxBountyEarnings) {
+                    // maxBountyEarnings is already in USD
+                    return <span className="text-rose-400 font-medium">${row.maxBountyEarnings.toFixed(2)}</span>;
                 }
                 return <span className="text-gray-600">-</span>;
             },

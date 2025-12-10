@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "./auth-provider";
 import { useTheme } from "./theme-provider";
@@ -83,8 +84,15 @@ export function Sidebar() {
         <aside className="fixed left-0 top-0 z-40 h-screen w-64 flex flex-col border-r border-border bg-card">
             {/* Logo */}
             <div className="flex items-center gap-3 px-6 py-5 border-b border-border">
-                <div className="w-10 h-10 rounded-xl bg-hero-gradient flex items-center justify-center shadow-glow">
-                    <span className="text-white font-bold text-lg">T</span>
+                <div className="w-10 h-10 rounded-xl overflow-hidden shadow-glow">
+                    <Image
+                        src="/logo.png"
+                        alt="TellSpike Logo"
+                        width={40}
+                        height={40}
+                        className="object-cover"
+                        priority
+                    />
                 </div>
                 <div>
                     <h1 className="font-display font-bold text-lg text-gradient">TellSpike</h1>
