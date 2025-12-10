@@ -7,19 +7,29 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.database import engine, Base
+from app.database import engine, Base, DATABASE_CONFIGURED
 from app.api import auth, accounts, dashboard, campaigns, metrics, alerts, reports, notifications
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
-    # Startup: Create database tables if they don't exist
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Startup: Create database tables if configured
+    if DATABASE_CONFIGURED and engine is not None:
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            print("Database tables created successfully")
+        except Exception as e:
+            print(f"Warning: Could not initialize database: {e}")
+    else:
+        print("Database not configured - running without database")
+    
     yield
+    
     # Shutdown: Clean up resources
-    await engine.dispose()
+    if engine is not None:
+        await engine.dispose()
 
 
 app = FastAPI(
@@ -31,10 +41,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware
+# CORS middleware - allow production URLs
+allowed_origins = [
+    settings.frontend_url,
+    "http://localhost:3000",
+    "http://localhost:3002",
+    "http://localhost:3003",
+    "https://googleadsdashboard-beta.vercel.app",
+    "https://googleadsdashboard.vercel.app",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url, "http://localhost:3000", "http://localhost:3002"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,7 +76,8 @@ async def root():
     return {
         "name": settings.app_name,
         "status": "healthy",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "database": "connected" if DATABASE_CONFIGURED else "not configured"
     }
 
 
@@ -66,6 +86,7 @@ async def health_check():
     """Detailed health check."""
     return {
         "status": "healthy",
-        "database": "connected",
-        "redis": "connected"
+        "database": "connected" if DATABASE_CONFIGURED else "not configured",
+        "environment": settings.app_env
     }
+
