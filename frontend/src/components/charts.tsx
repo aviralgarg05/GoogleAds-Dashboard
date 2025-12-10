@@ -244,7 +244,7 @@ export function MetricsBarChart({
                 <BarChart
                     data={data}
                     layout={horizontal ? "vertical" : "horizontal"}
-                    margin={{ top: 5, right: 20, left: horizontal ? 80 : 10, bottom: 5 }}
+                    margin={{ top: 5, right: 20, left: horizontal ? 80 : 10, bottom: horizontal ? 5 : 60 }}
                 >
                     <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} opacity={0.5} />
                     {horizontal ? (
@@ -268,9 +268,25 @@ export function MetricsBarChart({
                         <>
                             <XAxis
                                 dataKey="name"
-                                tick={{ fill: COLORS.text, fontSize: 12 }}
+                                tick={({ x, y, payload }) => (
+                                    <g transform={`translate(${x},${y})`}>
+                                        <text
+                                            x={0}
+                                            y={0}
+                                            dy={10}
+                                            textAnchor="end"
+                                            fill={COLORS.text}
+                                            fontSize={10}
+                                            transform="rotate(-40)"
+                                        >
+                                            {payload.value}
+                                        </text>
+                                    </g>
+                                )}
                                 axisLine={{ stroke: COLORS.border }}
                                 tickLine={false}
+                                interval={0}
+                                height={80}
                             />
                             <YAxis
                                 tick={{ fill: COLORS.text, fontSize: 12 }}

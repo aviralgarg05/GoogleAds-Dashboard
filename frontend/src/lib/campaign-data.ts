@@ -577,20 +577,19 @@ export const bidStrategyBreakdown = [
     { strategy: "Manual CPC", campaigns: 7, cost: 394285.86, conversions: 1877.06 },
 ];
 
-// Top performers by ROAS (estimated)
-export const topPerformers = campaigns
+// Placeholder - will be recalculated with enrichedCampaigns at end of file
+let topPerformers = campaigns
     .filter(c => c.conversions > 10)
     .map(c => ({
         ...c,
         cpa: c.cost / c.conversions,
-        estimatedValue: c.conversions * 500, // Estimated Rs.500 per conversion
-        roas: (c.conversions * 500) / c.cost,
+        actualRevenue: 0,
+        roas: 0,
     }))
-    .sort((a, b) => b.roas - a.roas)
-    .slice(0, 5);
+    .slice(0, 10);
 
-// Bottom performers
-export const bottomPerformers = campaigns
+// Placeholder - will be recalculated with enrichedCampaigns at end of file
+let bottomPerformers = campaigns
     .filter(c => c.conversions > 0)
     .map(c => ({
         ...c,
@@ -699,15 +698,14 @@ function calculateEfficiencyRating(campaign: Campaign): string {
 // AI-based risk level assessment
 function calculateRiskLevel(campaign: Campaign): string {
     const issues = [];
-    
-    if (campaign.ctr < 5) issues.push("low_ctr");
-    if (campaign.conversionRate < 20) issues.push("low_conv");
-    if (campaign.statusReasons?.includes("limited")) issues.push("limited");
-    if (campaign.optimizationScore < 60) issues.push("low_opt");
-    if ((campaign.searchImprShare || 0) < 20) issues.push("low_share");
+
+    if (campaign.ctr < 3) issues.push("low_ctr");
+    if (campaign.conversionRate < 15) issues.push("low_conv");
+    if (campaign.statusReasons?.includes("limited") && campaign.optimizationScore < 50) issues.push("limited");
+    if (campaign.optimizationScore < 40) issues.push("low_opt");
 
     if (issues.length >= 3) return "High";
-    if (issues.length >= 1) return "Medium";
+    if (issues.length >= 2) return "Medium";
     return "Low";
 }
 
@@ -885,7 +883,47 @@ export const admediaAggregates = {
 export const aiMetrics = {
     averageHealthScore: Math.round(enrichedCampaigns.reduce((sum, c) => sum + (c.healthScore || 0), 0) / enrichedCampaigns.length),
     highPerformers: enrichedCampaigns.filter(c => c.efficiencyRating === "A" || c.efficiencyRating === "B").length,
-    atRiskCampaigns: enrichedCampaigns.filter(c => c.riskLevel === "High").length,
+    stableCampaigns: enrichedCampaigns.filter(c => c.riskLevel === "Low").length,
     needsAttention: enrichedCampaigns.filter(c => c.riskLevel === "Medium").length,
+    atRiskCampaigns: enrichedCampaigns.filter(c => c.riskLevel === "High").length,
     totalPredictedROAS: Math.round(enrichedCampaigns.reduce((sum, c) => sum + (c.predictedROAS || 0), 0) / enrichedCampaigns.length * 100) / 100,
+    totalCampaigns: enrichedCampaigns.length,
 };
+
+// Recalculate topPerformers with actual revenue from Kelkoo/Admedia
+topPerformers = enrichedCampaigns
+    .filter(c => c.conversions > 5)
+    .map(c => {
+        // Calculate actual revenue from API data
+        let actualRevenue = 0;
+        if (c.isKelkoo && c.kelkooRevenueInr !== undefined && c.kelkooSaleValueInr !== undefined) {
+            actualRevenue = c.kelkooRevenueInr + c.kelkooSaleValueInr;
+        } else if (c.isAdmedia && c.admediaEarningsInr !== undefined) {
+            actualRevenue = c.admediaEarningsInr;
+        } else {
+            // For non-API campaigns, estimate based on conversion value
+            actualRevenue = c.conversions * c.avgCpc * 2.5;
+        }
+
+        return {
+            ...c,
+            cpa: c.conversions > 0 ? c.cost / c.conversions : 0,
+            actualRevenue,
+            roas: c.cost > 0 ? actualRevenue / c.cost : 0,
+        };
+    })
+    .sort((a, b) => b.roas - a.roas)
+    .slice(0, 10);
+
+// Recalculate bottomPerformers with enriched data
+bottomPerformers = enrichedCampaigns
+    .filter(c => c.conversions > 0)
+    .map(c => ({
+        ...c,
+        cpa: c.cost / c.conversions,
+    }))
+    .sort((a, b) => b.cpa - a.cpa)
+    .slice(0, 5);
+
+// Export the recalculated performers
+export { topPerformers, bottomPerformers };
