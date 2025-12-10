@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.database import engine, Base, DATABASE_CONFIGURED
+from app.mongodb import init_mongodb, close_mongodb, MONGODB_CONFIGURED
 from app.api import auth, accounts, dashboard, campaigns, metrics, alerts, reports, notifications
 from app.api.alerts_telegram import router as alerts_telegram_router
 from app.services.scheduler import start_scheduler, stop_scheduler
@@ -16,16 +16,18 @@ from app.services.scheduler import start_scheduler, stop_scheduler
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
-    # Startup: Create database tables if configured
-    if DATABASE_CONFIGURED and engine is not None:
+    # Startup: Initialize MongoDB if configured
+    if MONGODB_CONFIGURED:
         try:
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-            print("Database tables created successfully")
+            success = await init_mongodb()
+            if success:
+                print("MongoDB connected successfully")
+            else:
+                print("MongoDB connection failed - running without database")
         except Exception as e:
-            print(f"Warning: Could not initialize database: {e}")
+            print(f"Warning: Could not initialize MongoDB: {e}")
     else:
-        print("Database not configured - running without database")
+        print("MongoDB not configured - running without database")
     
     # Start the background scheduler for automatic spike detection
     print("Starting background scheduler for spike alerts...")
@@ -33,10 +35,9 @@ async def lifespan(app: FastAPI):
     
     yield
     
-    # Shutdown: Stop scheduler and clean up resources
+    # Shutdown: Stop scheduler and close MongoDB
     stop_scheduler()
-    if engine is not None:
-        await engine.dispose()
+    await close_mongodb()
 
 
 app = FastAPI(
