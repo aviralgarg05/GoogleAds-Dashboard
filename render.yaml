@@ -15,7 +15,9 @@ services:
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: tellspike-db
+          property: connectionString
       - key: SECRET_KEY
         generateValue: true
       - key: GOOGLE_ADS_DEVELOPER_TOKEN
@@ -45,3 +47,10 @@ services:
       # CORS Configuration
       - key: CORS_ORIGINS
         value: "https://googleadsdashboard-beta.vercel.app,https://googleadsdashboard.vercel.app"
+
+databases:
+  - name: tellspike-db
+    plan: free
+    databaseName: tellspike
+    user: tellspike
+    region: oregon

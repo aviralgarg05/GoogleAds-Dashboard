@@ -5,6 +5,7 @@ from app.models.account import GoogleAdsAccount
 from app.models.campaign import Campaign, AdGroup, Keyword
 from app.models.metrics import DailyMetric, HourlyMetric
 from app.models.alerts import Alert, AlertSetting, NotificationChannel, SavedReport, SyncLog
+from app.models.partner_metrics import PartnerNetworkMetric, AlertHistory
 
 __all__ = [
     "User",
@@ -19,4 +20,7 @@ __all__ = [
     "NotificationChannel",
     "SavedReport",
     "SyncLog",
+    "PartnerNetworkMetric",
+    "AlertHistory",
 ]
+
